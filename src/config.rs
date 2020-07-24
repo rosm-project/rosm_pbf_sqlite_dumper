@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use std::path::PathBuf;
 use std::collections::HashSet;
+use std::path::PathBuf;
 
 use super::error::DumperError;
 
@@ -61,15 +61,22 @@ pub struct Config {
 
     #[serde(default)]
     pub way_tags: TableConfig,
-
 }
 
 pub fn read_config(config_path: String) -> Result<Config, DumperError> {
-    let config_contents = std::fs::read_to_string(&config_path)
-        .map_err(|err| DumperError::new(err.into(), format!("Failed to read configuration from `{}`", config_path)))?;
+    let config_contents = std::fs::read_to_string(&config_path).map_err(|err| {
+        DumperError::new(
+            err.into(),
+            format!("Failed to read configuration from `{}`", config_path),
+        )
+    })?;
 
-    let config = serde_json::from_str::<Config>(&config_contents)
-        .map_err(|err| DumperError::new(err.into(), format!("Failed to parse configuration from `{}`", config_path)))?;
+    let config = serde_json::from_str::<Config>(&config_contents).map_err(|err| {
+        DumperError::new(
+            err.into(),
+            format!("Failed to parse configuration from `{}`", config_path),
+        )
+    })?;
 
     Ok(config)
 }

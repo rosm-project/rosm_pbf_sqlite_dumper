@@ -21,9 +21,6 @@ impl Error for DumperError {
 
 impl DumperError {
     pub fn new(err: Box<dyn Error>, msg: String) -> Self {
-        DumperError {
-            msg,
-            source: err,
-        }
+        DumperError { msg, source: err }
     }
 }

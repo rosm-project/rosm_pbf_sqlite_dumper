@@ -1,13 +1,13 @@
-use rosm_pbf_reader::{PbfReader, Block, TagReader, DeltaValueReader, DenseNodeReader, DenseNode};
 use rosm_pbf_reader::pbf;
 use rosm_pbf_reader::util::*;
+use rosm_pbf_reader::{Block, DeltaValueReader, DenseNode, DenseNodeReader, PbfReader, TagReader};
 
-use rusqlite::{NO_PARAMS, params, Transaction};
+use rusqlite::{params, Transaction, NO_PARAMS};
 
 use std::fs::File;
 
 mod config;
-use config::{Config, read_config, TableConfig};
+use config::{read_config, Config, TableConfig};
 
 mod db;
 
@@ -49,7 +49,10 @@ fn process_header_block(block: pbf::HeaderBlock, tr: &Transaction, config: &Conf
     }
 
     if let Some(osmosis_replication_sequence_number) = &block.osmosis_replication_sequence_number {
-        insert_info.execute(params!["osmosis_replication_sequence_number", osmosis_replication_sequence_number])?;
+        insert_info.execute(params![
+            "osmosis_replication_sequence_number",
+            osmosis_replication_sequence_number
+        ])?;
     }
 
     if let Some(osmosis_replication_base_url) = &block.osmosis_replication_base_url {
@@ -104,7 +107,11 @@ impl<'a> OsmPrimitive for DenseNode<'a> {
     }
 }
 
-fn insert_info<P: OsmPrimitive>(primitive: &P, block: &pbf::PrimitiveBlock, insert_stmt: &mut rusqlite::CachedStatement) -> rusqlite::Result<()> {
+fn insert_info<P: OsmPrimitive>(
+    primitive: &P,
+    block: &pbf::PrimitiveBlock,
+    insert_stmt: &mut rusqlite::CachedStatement,
+) -> rusqlite::Result<()> {
     if let Some(info) = primitive.info() {
         let user = if let Some(string_id) = info.user_sid {
             Some(std::str::from_utf8(block.stringtable.s[string_id as usize].as_ref()).unwrap())
@@ -118,12 +125,23 @@ fn insert_info<P: OsmPrimitive>(primitive: &P, block: &pbf::PrimitiveBlock, inse
             None
         };
 
-        insert_stmt.execute(params![primitive.id(), info.version, timestamp, info.uid, user, info.visible])?;
+        insert_stmt.execute(params![
+            primitive.id(),
+            info.version,
+            timestamp,
+            info.uid,
+            user,
+            info.visible
+        ])?;
     }
     Ok(())
 }
 
-fn process_primitive_block(block: pbf::PrimitiveBlock, config: &Config, stmts: &mut InsertStatements) -> rusqlite::Result<()> {
+fn process_primitive_block(
+    block: pbf::PrimitiveBlock,
+    config: &Config,
+    stmts: &mut InsertStatements,
+) -> rusqlite::Result<()> {
     let string_table = &block.stringtable;
 
     for group in &block.primitivegroup {
@@ -223,12 +241,18 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, config: &Config, stmts: &
                         let mut way_id = None;
                         let mut rel_id = None;
 
-                        use pbf::mod_Relation::MemberType as MemberType;
+                        use pbf::mod_Relation::MemberType;
 
                         match relation.types[i] {
-                            MemberType::NODE => { node_id = Some(member_id); },
-                            MemberType::WAY => { way_id = Some(member_id); },
-                            MemberType::RELATION => { rel_id = Some(member_id); },
+                            MemberType::NODE => {
+                                node_id = Some(member_id);
+                            }
+                            MemberType::WAY => {
+                                way_id = Some(member_id);
+                            }
+                            MemberType::RELATION => {
+                                rel_id = Some(member_id);
+                            }
                         }
 
                         let string_id = relation.roles_sid[i];
@@ -266,7 +290,7 @@ fn prepare_insert_statements<'a>(tr: &'a Transaction, config: &Config) -> rusqli
     let stmt = |sql: &str, table: &TableConfig, dependent_table: &TableConfig| {
         if !table.skip && !dependent_table.skip {
             tr.prepare_cached(sql).map(|statement| Some(statement))
-        } else { 
+        } else {
             Ok(None)
         }
     };
@@ -288,7 +312,11 @@ fn prepare_insert_statements<'a>(tr: &'a Transaction, config: &Config) -> rusqli
     })
 }
 
-fn dump<Input: std::io::Read>(pbf_reader: &mut PbfReader<Input>, conn: &mut rusqlite::Connection, config: &Config) -> rusqlite::Result<()> {
+fn dump<Input: std::io::Read>(
+    pbf_reader: &mut PbfReader<Input>,
+    conn: &mut rusqlite::Connection,
+    config: &Config,
+) -> rusqlite::Result<()> {
     {
         let tr = conn.transaction()?;
         db::create_tables(&tr, config)?;
@@ -296,9 +324,11 @@ fn dump<Input: std::io::Read>(pbf_reader: &mut PbfReader<Input>, conn: &mut rusq
     }
 
     conn.execute("PRAGMA synchronous = OFF", NO_PARAMS)?;
-    conn.query_row_and_then("PRAGMA journal_mode = MEMORY", NO_PARAMS, |_row| -> rusqlite::Result<()> {
-        Ok(())
-    })?;
+    conn.query_row_and_then(
+        "PRAGMA journal_mode = MEMORY",
+        NO_PARAMS,
+        |_row| -> rusqlite::Result<()> { Ok(()) },
+    )?;
 
     {
         let tr = conn.transaction()?;
@@ -324,7 +354,7 @@ fn dump<Input: std::io::Read>(pbf_reader: &mut PbfReader<Input>, conn: &mut rusq
 
 fn main() -> Result<(), DumperError> {
     let config_path = std::env::args().nth(1).unwrap_or("config.json".to_string());
-    let config = read_config(config_path)?;    
+    let config = read_config(config_path)?;
 
     let input_pbf = File::open(&config.input_pbf)
         .map_err(|err| DumperError::new(err.into(), format!("Failed to open input PBF `{:?}`", config.input_pbf)))?;
@@ -336,8 +366,12 @@ fn main() -> Result<(), DumperError> {
             .map_err(|err| DumperError::new(err.into(), format!("Failed to remove `{:?}`", config.output_db)))?;
     }
 
-    let mut conn = rusqlite::Connection::open(&config.output_db)
-        .map_err(|err| DumperError::new(err.into(), format!("Failed to open output SQLite database `{:?}`", config.output_db)))?;
+    let mut conn = rusqlite::Connection::open(&config.output_db).map_err(|err| {
+        DumperError::new(
+            err.into(),
+            format!("Failed to open output SQLite database `{:?}`", config.output_db),
+        )
+    })?;
 
     dump(&mut reader, &mut conn, &config)
         .map_err(|err| DumperError::new(err.into(), "An error occured during dumping".to_owned()))?;

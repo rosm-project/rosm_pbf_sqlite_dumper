@@ -1,4 +1,4 @@
-use rusqlite::{NO_PARAMS, Transaction};
+use rusqlite::{Transaction, NO_PARAMS};
 
 use super::config::{Config, TableConfig};
 
@@ -6,7 +6,16 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
     let create_index = |config: &TableConfig, table: &str| -> rusqlite::Result<()> {
         for columns in &config.create_index_on {
             let columns_split: Vec<&str> = columns.split(",").map(|c| c.trim()).collect();
-            tr.execute(&format!("CREATE INDEX {}_{} ON {} ({})", table, columns_split.join("_"), table, columns_split.join(", ")), NO_PARAMS)?;
+            tr.execute(
+                &format!(
+                    "CREATE INDEX {}_{} ON {} ({})",
+                    table,
+                    columns_split.join("_"),
+                    table,
+                    columns_split.join(", ")
+                ),
+                NO_PARAMS,
+            )?;
         }
         Ok(())
     };
@@ -115,7 +124,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                     ref_node_id INTEGER,
                     FOREIGN KEY(way_id) REFERENCES ways(id),
                     FOREIGN KEY(ref_node_id) REFERENCES nodes(id) DEFERRABLE INITIALLY DEFERRED
-                )", 
+                )",
                 NO_PARAMS,
             )?;
 
@@ -142,7 +151,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                     member_relation_id INTEGER,
                     role TEXT,
                     FOREIGN KEY(relation_id) REFERENCES relations(id)
-                )", 
+                )",
                 NO_PARAMS,
             )?;
 
@@ -180,6 +189,6 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
             create_index(&config.relation_info, "relation_info")?;
         }
     }
-    
+
     Ok(())
 }
