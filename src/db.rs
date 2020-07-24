@@ -1,8 +1,16 @@
 use rusqlite::{NO_PARAMS, Transaction};
 
-use super::config::Config;
+use super::config::{Config, TableConfig};
 
 pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> {
+    let create_index = |config: &TableConfig, table: &str| -> rusqlite::Result<()> {
+        for columns in &config.create_index_on {
+            let columns_split: Vec<&str> = columns.split(",").map(|c| c.trim()).collect();
+            tr.execute(&format!("CREATE INDEX {}_{} ON {} ({})", table, columns_split.join("_"), table, columns_split.join(", ")), NO_PARAMS)?;
+        }
+        Ok(())
+    };
+
     if !config.header.skip {
         tr.execute(
             "CREATE TABLE header (
@@ -11,6 +19,8 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
             )",
             NO_PARAMS,
         )?;
+
+        create_index(&config.header, "header")?;
     }
 
     if !config.nodes.skip {
@@ -23,6 +33,8 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
             NO_PARAMS,
         )?;
 
+        create_index(&config.nodes, "nodes")?;
+
         if !config.node_tags.skip {
             tr.execute(
                 "CREATE TABLE node_tags (
@@ -33,6 +45,8 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                 )",
                 NO_PARAMS,
             )?;
+
+            create_index(&config.node_tags, "node_tags")?;
         }
 
         if !config.node_info.skip {
@@ -48,6 +62,8 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                 )",
                 NO_PARAMS,
             )?;
+
+            create_index(&config.node_info, "node_info")?;
         }
     }
 
@@ -59,6 +75,8 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
             NO_PARAMS,
         )?;
 
+        create_index(&config.ways, "ways")?;
+
         if !config.way_tags.skip {
             tr.execute(
                 "CREATE TABLE way_tags (
@@ -69,6 +87,8 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                 )",
                 NO_PARAMS,
             )?;
+
+            create_index(&config.way_tags, "way_tags")?;
         }
 
         if !config.way_info.skip {
@@ -84,6 +104,8 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                 )",
                 NO_PARAMS,
             )?;
+
+            create_index(&config.way_info, "way_info")?;
         }
 
         if !config.way_refs.skip {
@@ -96,6 +118,8 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                 )", 
                 NO_PARAMS,
             )?;
+
+            create_index(&config.way_refs, "way_refs")?;
         }
     }
 
@@ -106,6 +130,8 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
             )",
             NO_PARAMS,
         )?;
+
+        create_index(&config.relations, "relations")?;
 
         if !config.relation_members.skip {
             tr.execute(
@@ -119,6 +145,8 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                 )", 
                 NO_PARAMS,
             )?;
+
+            create_index(&config.relation_members, "relation_members")?;
         }
 
         if !config.relation_tags.skip {
@@ -131,6 +159,8 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                 )",
                 NO_PARAMS,
             )?;
+
+            create_index(&config.relation_tags, "relation_tags")?;
         }
 
         if !config.relation_info.skip {
@@ -146,6 +176,8 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                 )",
                 NO_PARAMS,
             )?;
+
+            create_index(&config.relation_info, "relation_info")?;
         }
     }
     

@@ -7,7 +7,7 @@ use rusqlite::{NO_PARAMS, params, Transaction};
 use std::fs::File;
 
 mod config;
-use config::{Config, read_config};
+use config::{Config, read_config, TableConfig};
 
 mod db;
 

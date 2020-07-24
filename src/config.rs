@@ -9,6 +9,9 @@ use super::error::DumperError;
 pub struct TableConfig {
     #[serde(default)]
     pub skip: bool,
+
+    #[serde(default)]
+    pub create_index_on: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
