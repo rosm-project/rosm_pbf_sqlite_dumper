@@ -123,25 +123,11 @@ fn insert_info<P: OsmPrimitive>(primitive: &P, block: &pbf::PrimitiveBlock, inse
     Ok(())
 }
 
-fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config: &Config) -> rusqlite::Result<()> {
-    let mut insert_node = tr.prepare_cached("INSERT INTO nodes (id, lat, lon) VALUES (?1, ?2, ?3)")?;
-    let mut insert_node_tag = tr.prepare_cached("INSERT INTO node_tags (node_id, key, value) VALUES (?1, ?2, ?3)")?;
-    let mut insert_node_info = tr.prepare_cached("INSERT INTO node_info (node_id, version, timestamp, user_id, user, visible) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")?;
-
-    let mut insert_way = tr.prepare_cached("INSERT INTO ways (id) VALUES (?1)")?;
-    let mut insert_way_tag = tr.prepare_cached("INSERT INTO way_tags (way_id, key, value) VALUES (?1, ?2, ?3)")?;
-    let mut insert_way_info = tr.prepare_cached("INSERT INTO way_info (way_id, version, timestamp, user_id, user, visible) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")?;
-    let mut insert_way_ref = tr.prepare_cached("INSERT INTO way_refs (way_id, ref_node_id) VALUES (?1, ?2)")?;
-
-    let mut insert_relation = tr.prepare_cached("INSERT INTO relations (id) VALUES (?1)")?;
-    let mut insert_relation_tag = tr.prepare_cached("INSERT INTO relation_tags (relation_id, key, value) VALUES (?1, ?2, ?3)")?;
-    let mut insert_relation_info = tr.prepare_cached("INSERT INTO relation_info (relation_id, version, timestamp, user_id, user, visible) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")?;
-    let mut insert_relation_member = tr.prepare_cached("INSERT INTO relation_members (relation_id, member_node_id, member_way_id, member_relation_id, role) VALUES (?1, ?2, ?3, ?4, ?5)")?;
-
+fn process_primitive_block(block: pbf::PrimitiveBlock, config: &Config, stmts: &mut InsertStatements) -> rusqlite::Result<()> {
     let string_table = &block.stringtable;
 
     for group in &block.primitivegroup {
-        if !config.nodes.skip {
+        if let Some(insert_node) = &mut stmts.node {
             if let Some(dense_nodes) = &group.dense {
                 let nodes = DenseNodeReader::new(&dense_nodes, string_table);
 
@@ -149,11 +135,11 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
                     let coord = normalize_coord(node.lat, node.lon, &block);
                     insert_node.execute(params![node.id, coord.0, coord.1])?;
 
-                    if !config.node_info.skip {
-                        insert_info(&node, &block, &mut insert_node_info)?;
+                    if let Some(insert_node_info) = &mut stmts.node_info {
+                        insert_info(&node, &block, insert_node_info)?;
                     }
 
-                    if !config.node_tags.skip {
+                    if let Some(insert_node_tag) = &mut stmts.node_tag {
                         for (key, value) in node.tags {
                             if !config.skip_tag_keys.contains(key?) {
                                 insert_node_tag.execute(params![node.id, key?, value?])?;
@@ -166,7 +152,7 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
                     let coord = normalize_coord(node.lat, node.lon, &block);
                     insert_node.execute(params![node.id, coord.0, coord.1])?;
 
-                    if !config.node_tags.skip {
+                    if let Some(insert_node_tag) = &mut stmts.node_tag {
                         let tags = TagReader::new(&node.keys, &node.vals, string_table);
 
                         for (key, value) in tags {
@@ -176,18 +162,18 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
                         }
                     }
 
-                    if !config.node_info.skip {
-                        insert_info(node, &block, &mut insert_node_info)?;
+                    if let Some(insert_node_info) = &mut stmts.node_info {
+                        insert_info(node, &block, insert_node_info)?;
                     }
                 }
             }
         }
 
-        if !config.ways.skip {
+        if let Some(insert_way) = &mut stmts.way {
             for way in &group.ways {
                 insert_way.execute(params![way.id])?;
 
-                if !config.way_tags.skip {
+                if let Some(insert_way_tag) = &mut stmts.way_tag {
                     let tags = TagReader::new(&way.keys, &way.vals, string_table);
 
                     for (key, value) in tags {
@@ -197,11 +183,11 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
                     }
                 }
 
-                if !config.way_info.skip {
-                    insert_info(way, &block, &mut insert_way_info)?;
+                if let Some(insert_way_info) = &mut stmts.way_info {
+                    insert_info(way, &block, insert_way_info)?;
                 }
 
-                if !config.way_refs.skip {
+                if let Some(insert_way_ref) = &mut stmts.way_ref {
                     let refs = DeltaValueReader::new(&way.refs);
 
                     for node_id in refs {
@@ -211,11 +197,11 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
             }
         }
 
-        if !config.relations.skip {
+        if let Some(insert_relation) = &mut stmts.relation {
             for relation in &group.relations {
                 insert_relation.execute(params![relation.id])?;
 
-                if !config.relation_tags.skip {
+                if let Some(insert_relation_tag) = &mut stmts.relation_tag {
                     let tags = TagReader::new(&relation.keys, &relation.vals, string_table);
 
                     for (key, value) in tags {
@@ -225,11 +211,11 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
                     }
                 }
 
-                if !config.relation_info.skip {
-                    insert_info(relation, &block, &mut insert_relation_info)?;
+                if let Some(insert_relation_info) = &mut stmts.relation_info {
+                    insert_info(relation, &block, insert_relation_info)?;
                 }
 
-                if !config.relation_members.skip {
+                if let Some(insert_relation_member) = &mut stmts.relation_member {
                     let memids = DeltaValueReader::new(&relation.memids);
 
                     for (i, member_id) in memids.enumerate() {
@@ -258,6 +244,50 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
     Ok(())
 }
 
+type Stmt<'a> = Option<rusqlite::CachedStatement<'a>>;
+
+struct InsertStatements<'a> {
+    node: Stmt<'a>,
+    node_tag: Stmt<'a>,
+    node_info: Stmt<'a>,
+
+    way: Stmt<'a>,
+    way_tag: Stmt<'a>,
+    way_info: Stmt<'a>,
+    way_ref: Stmt<'a>,
+
+    relation: Stmt<'a>,
+    relation_tag: Stmt<'a>,
+    relation_info: Stmt<'a>,
+    relation_member: Stmt<'a>,
+}
+
+fn prepare_insert_statements<'a>(tr: &'a Transaction, config: &Config) -> rusqlite::Result<InsertStatements<'a>> {
+    let stmt = |sql: &str, table: &TableConfig, dependent_table: &TableConfig| {
+        if !table.skip && !dependent_table.skip {
+            tr.prepare_cached(sql).map(|statement| Some(statement))
+        } else { 
+            Ok(None)
+        }
+    };
+
+    Ok(InsertStatements {
+        node: stmt("INSERT INTO nodes (id, lat, lon) VALUES (?1, ?2, ?3)", &config.nodes, &config.nodes)?,
+        node_tag: stmt("INSERT INTO node_tags (node_id, key, value) VALUES (?1, ?2, ?3)", &config.node_tags, &config.nodes)?,
+        node_info: stmt("INSERT INTO node_info (node_id, version, timestamp, user_id, user, visible) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", &config.node_info, &config.nodes)?,
+
+        way: stmt("INSERT INTO ways (id) VALUES (?1)", &config.ways, &config.ways)?,
+        way_tag: stmt("INSERT INTO way_tags (way_id, key, value) VALUES (?1, ?2, ?3)", &config.way_tags, &config.ways)?,
+        way_info: stmt("INSERT INTO way_info (way_id, version, timestamp, user_id, user, visible) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", &config.way_info, &config.ways)?,
+        way_ref: stmt("INSERT INTO way_refs (way_id, ref_node_id) VALUES (?1, ?2)", &config.way_refs, &config.ways)?,
+
+        relation: stmt("INSERT INTO relations (id) VALUES (?1)", &config.relations, &config.relations)?,
+        relation_tag: stmt("INSERT INTO relation_tags (relation_id, key, value) VALUES (?1, ?2, ?3)", &config.relation_tags, &config.relations)?,
+        relation_info: stmt("INSERT INTO relation_info (relation_id, version, timestamp, user_id, user, visible) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", &config.relation_info, &config.relations)?,
+        relation_member: stmt("INSERT INTO relation_members (relation_id, member_node_id, member_way_id, member_relation_id, role) VALUES (?1, ?2, ?3, ?4, ?5)", &config.relation_members, &config.relations)?,
+    })
+}
+
 fn dump<Input: std::io::Read>(pbf_reader: &mut PbfReader<Input>, conn: &mut rusqlite::Connection, config: &Config) -> rusqlite::Result<()> {
     {
         let tr = conn.transaction()?;
@@ -273,14 +303,18 @@ fn dump<Input: std::io::Read>(pbf_reader: &mut PbfReader<Input>, conn: &mut rusq
     {
         let tr = conn.transaction()?;
 
+        let mut stmts = prepare_insert_statements(&tr, config)?;
+
         while let Some(result) = pbf_reader.read_block() {
             match result {
                 Ok(Block::Header(block)) => process_header_block(block, &tr, config)?,
-                Ok(Block::Primitive(block)) => process_primitive_block(block, &tr, config)?,
+                Ok(Block::Primitive(block)) => process_primitive_block(block, config, &mut stmts)?,
                 Ok(Block::Unknown(_)) => println!("Skipping unknown block"),
                 Err(error) => println!("Error during read: {:?}", error),
             }
         }
+
+        drop(stmts); // Ensure `tr` is no longer used
 
         tr.commit()?;
     }
