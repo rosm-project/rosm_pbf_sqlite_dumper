@@ -1,5 +1,3 @@
-extern crate rosm_pbf_reader;
-
 use rosm_pbf_reader::{PbfReader, Block, TagReader, DeltaValueReader, DenseNodeReader, DenseNode};
 use rosm_pbf_reader::pbf;
 use rosm_pbf_reader::util::*;
