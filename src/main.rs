@@ -6,11 +6,10 @@ use rosm_pbf_reader::util::*;
 
 use rusqlite as sql;
 
-use serde::{Deserialize, Serialize};
-
 use std::fs::File;
-use std::path::PathBuf;
-use std::collections::HashSet;
+
+mod config;
+use config::{Config, read_config};
 
 mod error;
 use error::DumperError;
@@ -399,46 +398,9 @@ fn dump<Input: std::io::Read>(pbf_reader: &mut PbfReader<Input>, conn: &mut sql:
     Ok(())
 }
 
-#[derive(Serialize, Deserialize)]
-struct Config {
-    input_pbf: PathBuf,
-    output_db: PathBuf,
-    #[serde(default)]
-    overwrite_output: bool,
-    #[serde(default)]
-    skip_tag_keys: HashSet<String>,
-    #[serde(default)]
-    skip_nodes: bool,
-    #[serde(default)]
-    skip_node_info: bool,
-    #[serde(default)]
-    skip_node_tags: bool,
-    #[serde(default)]
-    skip_relations: bool,
-    #[serde(default)]
-    skip_relation_info: bool,
-    #[serde(default)]
-    skip_relation_members: bool,
-    #[serde(default)]
-    skip_relation_tags: bool,
-    #[serde(default)]
-    skip_ways: bool,
-    #[serde(default)]
-    skip_way_info: bool,
-    #[serde(default)]
-    skip_way_refs: bool,
-    #[serde(default)]
-    skip_way_tags: bool,
-}
-
 fn main() -> Result<(), DumperError> {
     let config_path = std::env::args().nth(1).unwrap_or("config.json".to_string());
-
-    let config_contents = std::fs::read_to_string(&config_path)
-        .map_err(|err| DumperError::new(err.into(), format!("Failed to read configuration from `{}`", config_path)))?;
-
-    let config = serde_json::from_str::<Config>(&config_contents)
-        .map_err(|err| DumperError::new(err.into(), format!("Failed to parse configuration from `{}`", config_path)))?;
+    let config = read_config(config_path)?;    
 
     let input_pbf = File::open(&config.input_pbf)
         .map_err(|err| DumperError::new(err.into(), format!("Failed to open input PBF `{:?}`", config.input_pbf)))?;
