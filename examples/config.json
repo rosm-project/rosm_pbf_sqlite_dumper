@@ -1,0 +1,11 @@
+{
+    "input_pbf": "/path/to/input.osm.pbf",
+    "output_db": "/path/to/output.db",
+    "overwrite_output": true,
+    "skip_tag_keys": ["note", "created_by", "source", "converted_by", "fixme"],
+    "header": { "create_index_on": ["key"] },
+    "node_info": { "skip": true },
+    "node_tags": { "create_index_on": ["node_id, key"] },
+    "way_info": { "skip": true },
+    "relations": { "skip": true }
+}
