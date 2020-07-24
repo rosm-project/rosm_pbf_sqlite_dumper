@@ -5,36 +5,57 @@ use std::collections::HashSet;
 
 use super::error::DumperError;
 
+#[derive(Default, Serialize, Deserialize)]
+pub struct TableConfig {
+    #[serde(default)]
+    pub skip: bool,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Config {
     pub input_pbf: PathBuf,
+
     pub output_db: PathBuf,
+
     #[serde(default)]
     pub overwrite_output: bool,
+
     #[serde(default)]
     pub skip_tag_keys: HashSet<String>,
+
     #[serde(default)]
-    pub skip_nodes: bool,
+    pub nodes: TableConfig,
+
     #[serde(default)]
-    pub skip_node_info: bool,
+    pub node_info: TableConfig,
+
     #[serde(default)]
-    pub skip_node_tags: bool,
+    pub node_tags: TableConfig,
+
     #[serde(default)]
-    pub skip_relations: bool,
+    pub relations: TableConfig,
+
     #[serde(default)]
-    pub skip_relation_info: bool,
+    pub relation_info: TableConfig,
+
     #[serde(default)]
-    pub skip_relation_members: bool,
+    pub relation_members: TableConfig,
+
     #[serde(default)]
-    pub skip_relation_tags: bool,
+    pub relation_tags: TableConfig,
+
     #[serde(default)]
-    pub skip_ways: bool,
+    pub ways: TableConfig,
+
     #[serde(default)]
-    pub skip_way_info: bool,
+    pub way_info: TableConfig,
+
     #[serde(default)]
-    pub skip_way_refs: bool,
+    pub way_refs: TableConfig,
+
     #[serde(default)]
-    pub skip_way_tags: bool,
+    pub way_tags: TableConfig,
+
 }
 
 pub fn read_config(config_path: String) -> Result<Config, DumperError> {

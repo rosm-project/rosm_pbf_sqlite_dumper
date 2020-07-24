@@ -137,7 +137,7 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
     let string_table = &block.stringtable;
 
     for group in &block.primitivegroup {
-        if !config.skip_nodes {
+        if !config.nodes.skip {
             if let Some(dense_nodes) = &group.dense {
                 let nodes = DenseNodeReader::new(&dense_nodes, string_table);
 
@@ -145,11 +145,11 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
                     let coord = normalize_coord(node.lat, node.lon, &block);
                     insert_node.execute(params![node.id, coord.0, coord.1])?;
 
-                    if !config.skip_node_info {
+                    if !config.node_info.skip {
                         insert_info(&node, &block, &mut insert_node_info)?;
                     }
 
-                    if !config.skip_node_tags {
+                    if !config.node_tags.skip {
                         for (key, value) in node.tags {
                             if !config.skip_tag_keys.contains(key?) {
                                 insert_node_tag.execute(params![node.id, key?, value?])?;
@@ -162,7 +162,7 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
                     let coord = normalize_coord(node.lat, node.lon, &block);
                     insert_node.execute(params![node.id, coord.0, coord.1])?;
 
-                    if !config.skip_node_tags {
+                    if !config.node_tags.skip {
                         let tags = TagReader::new(&node.keys, &node.vals, string_table);
 
                         for (key, value) in tags {
@@ -172,18 +172,18 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
                         }
                     }
 
-                    if !config.skip_node_info {
+                    if !config.node_info.skip {
                         insert_info(node, &block, &mut insert_node_info)?;
                     }
                 }
             }
         }
 
-        if !config.skip_ways {
+        if !config.ways.skip {
             for way in &group.ways {
                 insert_way.execute(params![way.id])?;
 
-                if !config.skip_way_tags {
+                if !config.way_tags.skip {
                     let tags = TagReader::new(&way.keys, &way.vals, string_table);
 
                     for (key, value) in tags {
@@ -193,11 +193,11 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
                     }
                 }
 
-                if !config.skip_way_info {
+                if !config.way_info.skip {
                     insert_info(way, &block, &mut insert_way_info)?;
                 }
 
-                if !config.skip_way_refs {
+                if !config.way_refs.skip {
                     let refs = DeltaValueReader::new(&way.refs);
 
                     for node_id in refs {
@@ -207,11 +207,11 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
             }
         }
 
-        if !config.skip_relations {
+        if !config.relations.skip {
             for relation in &group.relations {
                 insert_relation.execute(params![relation.id])?;
 
-                if !config.skip_relation_tags {
+                if !config.relation_tags.skip {
                     let tags = TagReader::new(&relation.keys, &relation.vals, string_table);
 
                     for (key, value) in tags {
@@ -221,11 +221,11 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
                     }
                 }
 
-                if !config.skip_relation_info {
+                if !config.relation_info.skip {
                     insert_info(relation, &block, &mut insert_relation_info)?;
                 }
 
-                if !config.skip_relation_members {
+                if !config.relation_members.skip {
                     let memids = DeltaValueReader::new(&relation.memids);
 
                     for (i, member_id) in memids.enumerate() {
