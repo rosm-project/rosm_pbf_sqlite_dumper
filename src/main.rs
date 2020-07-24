@@ -10,9 +10,10 @@ use serde::{Deserialize, Serialize};
 
 use std::fs::File;
 use std::path::PathBuf;
-use std::error;
-use std::fmt;
 use std::collections::HashSet;
+
+mod error;
+use error::DumperError;
 
 fn create_tables(tr: &sql::Transaction) -> sql::Result<()> {
     tr.execute(
@@ -428,33 +429,6 @@ struct Config {
     skip_way_refs: bool,
     #[serde(default)]
     skip_way_tags: bool,
-}
-
-#[derive(Debug)]
-struct DumperError {
-    msg: String,
-    source: Box<dyn error::Error>,
-}
-
-impl fmt::Display for DumperError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}, src: {}", self.msg, self.source)
-    }
-}
-
-impl error::Error for DumperError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        None
-    }
-}
-
-impl DumperError {
-    pub fn new(err: Box<dyn error::Error>, msg: String) -> Self {
-        DumperError {
-            msg,
-            source: err,
-        }
-    }
 }
 
 fn main() -> Result<(), DumperError> {
