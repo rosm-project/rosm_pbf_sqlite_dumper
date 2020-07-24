@@ -24,6 +24,9 @@ pub struct Config {
     pub skip_tag_keys: HashSet<String>,
 
     #[serde(default)]
+    pub header: TableConfig,
+
+    #[serde(default)]
     pub nodes: TableConfig,
 
     #[serde(default)]

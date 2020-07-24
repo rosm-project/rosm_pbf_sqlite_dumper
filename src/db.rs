@@ -3,13 +3,15 @@ use rusqlite::{NO_PARAMS, Transaction};
 use super::config::Config;
 
 pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> {
-    tr.execute(
-        "CREATE TABLE header (
-            key TEXT,
-            value TEXT
-        )",
-        NO_PARAMS,
-    )?;
+    if !config.header.skip {
+        tr.execute(
+            "CREATE TABLE header (
+                key TEXT,
+                value TEXT
+            )",
+            NO_PARAMS,
+        )?;
+    }
 
     if !config.nodes.skip {
         tr.execute(

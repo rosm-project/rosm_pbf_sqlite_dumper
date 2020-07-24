@@ -14,7 +14,11 @@ mod db;
 mod error;
 use error::DumperError;
 
-fn process_header_block(block: pbf::HeaderBlock, tr: &Transaction) -> rusqlite::Result<()> {
+fn process_header_block(block: pbf::HeaderBlock, tr: &Transaction, config: &Config) -> rusqlite::Result<()> {
+    if config.header.skip {
+        return Ok(());
+    }
+
     let mut insert_info = tr.prepare_cached("INSERT INTO header (key, value) VALUES (?1, ?2)")?;
 
     if let Some(bbox) = &block.bbox {
@@ -271,7 +275,7 @@ fn dump<Input: std::io::Read>(pbf_reader: &mut PbfReader<Input>, conn: &mut rusq
 
         while let Some(result) = pbf_reader.read_block() {
             match result {
-                Ok(Block::Header(block)) => process_header_block(block, &tr)?,
+                Ok(Block::Header(block)) => process_header_block(block, &tr, config)?,
                 Ok(Block::Primitive(block)) => process_primitive_block(block, &tr, config)?,
                 Ok(Block::Unknown(_)) => println!("Skipping unknown block"),
                 Err(error) => println!("Error during read: {:?}", error),
