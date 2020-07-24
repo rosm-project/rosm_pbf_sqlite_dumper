@@ -257,7 +257,7 @@ fn process_primitive_block(block: pbf::PrimitiveBlock, tr: &Transaction, config:
 fn dump<Input: std::io::Read>(pbf_reader: &mut PbfReader<Input>, conn: &mut rusqlite::Connection, config: &Config) -> rusqlite::Result<()> {
     {
         let tr = conn.transaction()?;
-        db::create_tables(&tr)?;
+        db::create_tables(&tr, config)?;
         tr.commit()?;
     }
 
