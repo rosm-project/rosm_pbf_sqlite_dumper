@@ -1,6 +1,6 @@
 use rosm_pbf_reader::pbf;
 use rosm_pbf_reader::util::*;
-use rosm_pbf_reader::{Block, DeltaValueReader, DenseNode, DenseNodeReader, PbfReader, TagReader};
+use rosm_pbf_reader::{read_blob, Block, BlockParser, DeltaValueReader, DenseNode, DenseNodeReader, TagReader};
 
 use rusqlite::{params, Transaction, NO_PARAMS};
 
@@ -313,7 +313,7 @@ fn prepare_insert_statements<'a>(tr: &'a Transaction, config: &Config) -> rusqli
 }
 
 fn dump<Input: std::io::Read>(
-    pbf_reader: &mut PbfReader<Input>,
+    input_pbf: &mut Input,
     conn: &mut rusqlite::Connection,
     config: &Config,
 ) -> rusqlite::Result<()> {
@@ -335,12 +335,21 @@ fn dump<Input: std::io::Read>(
 
         let mut stmts = prepare_insert_statements(&tr, config)?;
 
-        while let Some(result) = pbf_reader.read_block() {
+        let mut block_parser = BlockParser::default();
+
+        while let Some(result) = read_blob(input_pbf) {
             match result {
-                Ok(Block::Header(block)) => process_header_block(block, &tr, config)?,
-                Ok(Block::Primitive(block)) => process_primitive_block(block, config, &mut stmts)?,
-                Ok(Block::Unknown(_)) => println!("Skipping unknown block"),
-                Err(error) => println!("Error during read: {:?}", error),
+                Ok(raw_block) => {
+                    match block_parser.parse_block(raw_block) {
+                        Ok(block) => match block {
+                            Block::Header(header_block) => process_header_block(header_block, &tr, config)?,
+                            Block::Primitive(primitive_block) => process_primitive_block(primitive_block, config, &mut stmts)?,
+                            Block::Unknown(unknown_block) => println!("Skipping unknown block of size {}", unknown_block.len()),
+                        }
+                        Err(error) => println!("Error during parsing a block: {:?}", error),
+                    }
+                }
+                Err(error) => println!("Error during reading the next blob: {:?}", error),
             }
         }
 
@@ -356,10 +365,8 @@ fn main() -> Result<(), DumperError> {
     let config_path = std::env::args().nth(1).unwrap_or("config.json".to_string());
     let config = read_config(config_path)?;
 
-    let input_pbf = File::open(&config.input_pbf)
+    let mut input_pbf = File::open(&config.input_pbf)
         .map_err(|err| DumperError::new(err.into(), format!("Failed to open input PBF `{:?}`", config.input_pbf)))?;
-
-    let mut reader = PbfReader::new(input_pbf);
 
     if config.overwrite_output && config.output_db.exists() {
         std::fs::remove_file(&config.output_db)
@@ -373,7 +380,7 @@ fn main() -> Result<(), DumperError> {
         )
     })?;
 
-    dump(&mut reader, &mut conn, &config)
+    dump(&mut input_pbf, &mut conn, &config)
         .map_err(|err| DumperError::new(err.into(), "An error occured during dumping".to_owned()))?;
 
     Ok(())

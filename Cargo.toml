@@ -7,5 +7,5 @@ edition = "2018"
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-rosm_pbf_reader = { git = "https://github.com/rosm-project/rosm_pbf_reader", rev = "6373029db702e2dc9218a8262440613897b43ddc" }
+rosm_pbf_reader = { git = "https://github.com/rosm-project/rosm_pbf_reader", version = "0.3" }
 rusqlite = { version = "0.23", features = ["bundled"] }
