@@ -1,4 +1,4 @@
-use rusqlite::{Transaction, NO_PARAMS};
+use rusqlite::Transaction;
 
 use super::config::{Config, TableConfig};
 
@@ -14,7 +14,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                     table,
                     columns_split.join(", ")
                 ),
-                NO_PARAMS,
+                [],
             )?;
         }
         Ok(())
@@ -26,7 +26,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                 key TEXT,
                 value TEXT
             )",
-            NO_PARAMS,
+            [],
         )?;
 
         create_index(&config.header, "header")?;
@@ -39,7 +39,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                 lat INTEGER NOT NULL,
                 lon INTEGER NOT NULL
             )",
-            NO_PARAMS,
+            [],
         )?;
 
         create_index(&config.nodes, "nodes")?;
@@ -52,7 +52,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                     value TEXT,
                     FOREIGN KEY(node_id) REFERENCES nodes(id)
                 )",
-                NO_PARAMS,
+                [],
             )?;
 
             create_index(&config.node_tags, "node_tags")?;
@@ -69,7 +69,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                     visible BOOL,
                     FOREIGN KEY(node_id) REFERENCES nodes(id)
                 )",
-                NO_PARAMS,
+                [],
             )?;
 
             create_index(&config.node_info, "node_info")?;
@@ -81,7 +81,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
             "CREATE TABLE ways (
                 id INTEGER PRIMARY KEY
             )",
-            NO_PARAMS,
+            [],
         )?;
 
         create_index(&config.ways, "ways")?;
@@ -94,7 +94,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                     value TEXT,
                     FOREIGN KEY(way_id) REFERENCES ways(id)
                 )",
-                NO_PARAMS,
+                [],
             )?;
 
             create_index(&config.way_tags, "way_tags")?;
@@ -111,7 +111,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                     visible BOOL,
                     FOREIGN KEY(way_id) REFERENCES ways(id)
                 )",
-                NO_PARAMS,
+                [],
             )?;
 
             create_index(&config.way_info, "way_info")?;
@@ -125,7 +125,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                     FOREIGN KEY(way_id) REFERENCES ways(id),
                     FOREIGN KEY(ref_node_id) REFERENCES nodes(id) DEFERRABLE INITIALLY DEFERRED
                 )",
-                NO_PARAMS,
+                [],
             )?;
 
             create_index(&config.way_refs, "way_refs")?;
@@ -137,7 +137,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
             "CREATE TABLE relations (
                 id INTEGER PRIMARY KEY
             )",
-            NO_PARAMS,
+            [],
         )?;
 
         create_index(&config.relations, "relations")?;
@@ -152,7 +152,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                     role TEXT,
                     FOREIGN KEY(relation_id) REFERENCES relations(id)
                 )",
-                NO_PARAMS,
+                [],
             )?;
 
             create_index(&config.relation_members, "relation_members")?;
@@ -166,7 +166,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                     value TEXT,
                     FOREIGN KEY(relation_id) REFERENCES relations(id)
                 )",
-                NO_PARAMS,
+                [],
             )?;
 
             create_index(&config.relation_tags, "relation_tags")?;
@@ -183,7 +183,7 @@ pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> 
                     visible BOOL,
                     FOREIGN KEY(relation_id) REFERENCES relations(id)
                 )",
-                NO_PARAMS,
+                [],
             )?;
 
             create_index(&config.relation_info, "relation_info")?;

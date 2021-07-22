@@ -2,7 +2,7 @@ use rosm_pbf_reader::pbf;
 use rosm_pbf_reader::util::*;
 use rosm_pbf_reader::{read_blob, Block, BlockParser, DeltaValueReader, DenseNode, DenseNodeReader, TagReader};
 
-use rusqlite::{params, Transaction, NO_PARAMS};
+use rusqlite::{params, Transaction};
 
 use std::fs::File;
 
@@ -323,10 +323,10 @@ fn dump<Input: std::io::Read>(
         tr.commit()?;
     }
 
-    conn.execute("PRAGMA synchronous = OFF", NO_PARAMS)?;
+    conn.execute("PRAGMA synchronous = OFF", [])?;
     conn.query_row_and_then(
         "PRAGMA journal_mode = MEMORY",
-        NO_PARAMS,
+        [],
         |_row| -> rusqlite::Result<()> { Ok(()) },
     )?;
 
