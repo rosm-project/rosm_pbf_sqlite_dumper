@@ -34,8 +34,3 @@ The resulting SQLite database has the following tables (depending on configurati
 
 - `node/way/relation_tags`: Key/value pairs for nodes/ways/relations.
 - `node/way/relation_info`: Other info for nodes/ways/relations (version, timestamp, user, etc.).
-
-## Dependencies
-
-- [rosm_pbf_reader](https://github.com/yzsolt/rosm_pbf_reader) for reading OSM PBF
-- [rusqlite](https://github.com/rusqlite/rusqlite) for writing SQLite
