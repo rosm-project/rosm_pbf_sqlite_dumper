@@ -1,9 +1,8 @@
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 use std::collections::HashSet;
 use std::path::PathBuf;
-
-use super::error::DumperError;
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct TableConfig {
@@ -63,20 +62,12 @@ pub struct Config {
     pub way_tags: TableConfig,
 }
 
-pub fn read_config(config_path: String) -> Result<Config, DumperError> {
-    let config_contents = std::fs::read_to_string(&config_path).map_err(|err| {
-        DumperError::new(
-            err.into(),
-            format!("Failed to read configuration from `{}`", config_path),
-        )
-    })?;
+pub fn read_config(config_path: String) -> anyhow::Result<Config> {
+    let config_contents = std::fs::read_to_string(&config_path)
+        .with_context(|| format!("Failed to read configuration from {}", config_path))?;
 
-    let config = toml::from_str::<Config>(&config_contents).map_err(|err| {
-        DumperError::new(
-            err.into(),
-            format!("Failed to parse configuration from `{}`", config_path),
-        )
-    })?;
+    let config = toml::from_str::<Config>(&config_contents)
+        .with_context(|| format!("Failed to parse configuration from {}", config_path))?;
 
     Ok(config)
 }

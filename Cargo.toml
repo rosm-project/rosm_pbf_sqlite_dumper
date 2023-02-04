@@ -5,6 +5,7 @@ authors = ["Zsolt Bölöny <bolony.zsolt@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.68"
 serde = { version = "1.0.152", features = ["derive"] }
 rosm_pbf_reader = { git = "https://github.com/rosm-project/rosm_pbf_reader", version = "0.4" }
 rusqlite = { version = "0.28", features = ["bundled"] }

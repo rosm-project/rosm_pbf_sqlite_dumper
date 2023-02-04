@@ -1,3 +1,5 @@
+use anyhow::Context;
+
 use rosm_pbf_reader::pbf;
 use rosm_pbf_reader::util::*;
 use rosm_pbf_reader::{read_blob, Block, BlockParser, DeltaValueReader, DenseNode, DenseNodeReader, TagReader};
@@ -10,9 +12,6 @@ mod config;
 use config::{read_config, Config, TableConfig};
 
 mod db;
-
-mod error;
-use error::DumperError;
 
 fn process_header_block(block: pbf::HeaderBlock, tr: &Transaction, config: &Config) -> rusqlite::Result<()> {
     if config.header.skip {
@@ -141,7 +140,7 @@ fn process_primitive_block(
     block: pbf::PrimitiveBlock,
     config: &Config,
     stmts: &mut InsertStatements,
-) -> rusqlite::Result<()> {
+) -> anyhow::Result<()> {
     let string_table = &block.stringtable;
 
     for group in &block.primitivegroup {
@@ -316,7 +315,7 @@ fn dump<Input: std::io::Read>(
     input_pbf: &mut Input,
     conn: &mut rusqlite::Connection,
     config: &Config,
-) -> rusqlite::Result<()> {
+) -> anyhow::Result<()> {
     {
         let tr = conn.transaction()?;
         db::create_tables(&tr, config)?;
@@ -361,27 +360,22 @@ fn dump<Input: std::io::Read>(
     Ok(())
 }
 
-fn main() -> Result<(), DumperError> {
+fn main() -> anyhow::Result<()> {
     let config_path = std::env::args().nth(1).unwrap_or("config.toml".to_string());
     let config = read_config(config_path)?;
 
-    let mut input_pbf = File::open(&config.input_pbf)
-        .map_err(|err| DumperError::new(err.into(), format!("Failed to open input PBF `{:?}`", config.input_pbf)))?;
+    let mut input_pbf =
+        File::open(&config.input_pbf).with_context(|| format!("Failed to open input PBF `{:?}`", config.input_pbf))?;
 
     if config.overwrite_output && config.output_db.exists() {
         std::fs::remove_file(&config.output_db)
-            .map_err(|err| DumperError::new(err.into(), format!("Failed to remove `{:?}`", config.output_db)))?;
+            .with_context(|| format!("Failed to remove `{:?}`", config.output_db))?;
     }
 
-    let mut conn = rusqlite::Connection::open(&config.output_db).map_err(|err| {
-        DumperError::new(
-            err.into(),
-            format!("Failed to open output SQLite database `{:?}`", config.output_db),
-        )
-    })?;
+    let mut conn = rusqlite::Connection::open(&config.output_db)
+        .with_context(|| format!("Failed to open output SQLite database `{:?}`", config.output_db))?;
 
-    dump(&mut input_pbf, &mut conn, &config)
-        .map_err(|err| DumperError::new(err.into(), "An error occured during dumping".to_owned()))?;
+    dump(&mut input_pbf, &mut conn, &config)?;
 
     Ok(())
 }
