@@ -241,16 +241,16 @@ fn process_primitive_block(
                         let mut way_id = None;
                         let mut rel_id = None;
 
-                        use pbf::mod_Relation::MemberType;
+                        use pbf::relation::MemberType;
 
-                        match relation.types[i] {
-                            MemberType::NODE => {
+                        match MemberType::from_i32(relation.types[i]).expect("invalid MemberType enum") {
+                            MemberType::Node => {
                                 node_id = Some(member_id);
                             }
-                            MemberType::WAY => {
+                            MemberType::Way => {
                                 way_id = Some(member_id);
                             }
-                            MemberType::RELATION => {
+                            MemberType::Relation => {
                                 rel_id = Some(member_id);
                             }
                         }
@@ -324,11 +324,9 @@ fn dump<Input: std::io::Read>(
     }
 
     conn.execute("PRAGMA synchronous = OFF", [])?;
-    conn.query_row_and_then(
-        "PRAGMA journal_mode = MEMORY",
-        [],
-        |_row| -> rusqlite::Result<()> { Ok(()) },
-    )?;
+    conn.query_row_and_then("PRAGMA journal_mode = MEMORY", [], |_row| -> rusqlite::Result<()> {
+        Ok(())
+    })?;
 
     {
         let tr = conn.transaction()?;
@@ -339,16 +337,18 @@ fn dump<Input: std::io::Read>(
 
         while let Some(result) = read_blob(input_pbf) {
             match result {
-                Ok(raw_block) => {
-                    match block_parser.parse_block(raw_block) {
-                        Ok(block) => match block {
-                            Block::Header(header_block) => process_header_block(header_block, &tr, config)?,
-                            Block::Primitive(primitive_block) => process_primitive_block(primitive_block, config, &mut stmts)?,
-                            Block::Unknown(unknown_block) => println!("Skipping unknown block of size {}", unknown_block.len()),
+                Ok(raw_block) => match block_parser.parse_block(raw_block) {
+                    Ok(block) => match block {
+                        Block::Header(header_block) => process_header_block(header_block, &tr, config)?,
+                        Block::Primitive(primitive_block) => {
+                            process_primitive_block(primitive_block, config, &mut stmts)?
                         }
-                        Err(error) => println!("Error during parsing a block: {:?}", error),
-                    }
-                }
+                        Block::Unknown(unknown_block) => {
+                            println!("Skipping unknown block of size {}", unknown_block.len())
+                        }
+                    },
+                    Err(error) => println!("Error during parsing a block: {:?}", error),
+                },
                 Err(error) => println!("Error during reading the next blob: {:?}", error),
             }
         }
