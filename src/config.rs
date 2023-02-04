@@ -71,7 +71,7 @@ pub fn read_config(config_path: String) -> Result<Config, DumperError> {
         )
     })?;
 
-    let config = serde_json::from_str::<Config>(&config_contents).map_err(|err| {
+    let config = toml::from_str::<Config>(&config_contents).map_err(|err| {
         DumperError::new(
             err.into(),
             format!("Failed to parse configuration from `{}`", config_path),
@@ -79,4 +79,31 @@ pub fn read_config(config_path: String) -> Result<Config, DumperError> {
     })?;
 
     Ok(config)
+}
+
+#[cfg(test)]
+mod config_tests {
+    use std::vec;
+
+    use super::*;
+
+    #[test]
+    fn valid_input() {
+        let config: Config = toml::from_str(
+            r#"
+input_pbf = "osm.pbf"
+output_db = "out.db"
+overwrite_output = true
+
+[node_tags]
+create_index_on = ["node_id, key"]
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(config.input_pbf.to_str().unwrap(), "osm.pbf");
+        assert_eq!(config.output_db.to_str().unwrap(), "out.db");
+        assert_eq!(config.overwrite_output, true);
+        assert_eq!(config.node_tags.create_index_on, vec!["node_id, key"]);
+    }
 }

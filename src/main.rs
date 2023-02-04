@@ -362,7 +362,7 @@ fn dump<Input: std::io::Read>(
 }
 
 fn main() -> Result<(), DumperError> {
-    let config_path = std::env::args().nth(1).unwrap_or("config.json".to_string());
+    let config_path = std::env::args().nth(1).unwrap_or("config.toml".to_string());
     let config = read_config(config_path)?;
 
     let mut input_pbf = File::open(&config.input_pbf)
