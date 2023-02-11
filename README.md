@@ -4,11 +4,11 @@ A simple command line tool for creating SQLite dumps from [OpenStreetMap PBF](ht
 
 ## Usage
 
-The tool has a single, optional command line argument, which is the path to the configuration JSON file. The default value is `config.json` .
+The tool has a single, optional command line argument, which is the path to the configuration TOML file. The default value is `config.toml` .
 
 ## Configuration
 
-The configuration is a JSON file, where the root object may contain the following keys:
+The configuration is a TOML file, where the root object may contain the following keys:
 
 - `input_pbf`: Path of the input PBF.
 - `output_db`: Path of the output SQLite database.
@@ -19,7 +19,7 @@ For table-specific configuration the table's name should be used as the key, and
 - `skip`: If `true` the given table will be skipped. Default is `false`.
 - `create_index_on`: Array of column list strings (columns separated by commas) to create indices for on the given table.
 
-See `examples/config.json` for an example configuration file.
+See `examples/config.toml` for an example configuration file.
 
 ## Output
 
@@ -34,9 +34,3 @@ The resulting SQLite database has the following tables (depending on configurati
 
 - `node/way/relation_tags`: Key/value pairs for nodes/ways/relations.
 - `node/way/relation_info`: Other info for nodes/ways/relations (version, timestamp, user, etc.).
-
-## Dependencies
-
-- [rosm_pbf_reader](https://github.com/yzsolt/rosm_pbf_reader) for reading OSM PBF
-- [rusqlite](https://github.com/rusqlite/rusqlite) for writing SQLite
-- [serde_json](https://github.com/serde-rs/json) for reading configuration JSON

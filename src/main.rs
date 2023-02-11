@@ -1,6 +1,9 @@
+use anyhow::Context;
+
+use rosm_pbf_reader::dense::{new_dense_tag_reader, DenseNode, DenseNodeReader};
 use rosm_pbf_reader::pbf;
 use rosm_pbf_reader::util::*;
-use rosm_pbf_reader::{read_blob, Block, BlockParser, DeltaValueReader, DenseNode, DenseNodeReader, TagReader};
+use rosm_pbf_reader::{new_tag_reader, read_blob, Block, BlockParser, DeltaValueReader};
 
 use rusqlite::{params, Transaction};
 
@@ -10,9 +13,6 @@ mod config;
 use config::{read_config, Config, TableConfig};
 
 mod db;
-
-mod error;
-use error::DumperError;
 
 fn process_header_block(block: pbf::HeaderBlock, tr: &Transaction, config: &Config) -> rusqlite::Result<()> {
     if config.header.skip {
@@ -141,15 +141,17 @@ fn process_primitive_block(
     block: pbf::PrimitiveBlock,
     config: &Config,
     stmts: &mut InsertStatements,
-) -> rusqlite::Result<()> {
+) -> anyhow::Result<()> {
     let string_table = &block.stringtable;
 
     for group in &block.primitivegroup {
         if let Some(insert_node) = &mut stmts.node {
             if let Some(dense_nodes) = &group.dense {
-                let nodes = DenseNodeReader::new(&dense_nodes, string_table);
+                let nodes = DenseNodeReader::new(&dense_nodes)?;
 
                 for node in nodes {
+                    let node = node?;
+
                     let coord = normalize_coord(node.lat, node.lon, &block);
                     insert_node.execute(params![node.id, coord.0, coord.1])?;
 
@@ -158,9 +160,13 @@ fn process_primitive_block(
                     }
 
                     if let Some(insert_node_tag) = &mut stmts.node_tag {
-                        for (key, value) in node.tags {
-                            if !config.skip_tag_keys.contains(key?) {
-                                insert_node_tag.execute(params![node.id, key?, value?])?;
+                        let tags = new_dense_tag_reader(string_table, node.key_value_indices);
+
+                        for (key, value) in tags {
+                            let key = key?;
+
+                            if !config.skip_tag_keys.contains(key) {
+                                insert_node_tag.execute(params![node.id, key, value?])?;
                             }
                         }
                     }
@@ -171,11 +177,12 @@ fn process_primitive_block(
                     insert_node.execute(params![node.id, coord.0, coord.1])?;
 
                     if let Some(insert_node_tag) = &mut stmts.node_tag {
-                        let tags = TagReader::new(&node.keys, &node.vals, string_table);
+                        let tags = new_tag_reader(string_table, &node.keys, &node.vals);
 
                         for (key, value) in tags {
-                            if !config.skip_tag_keys.contains(key?) {
-                                insert_node_tag.execute(params![node.id, key?, value?])?;
+                            let key = key?;
+                            if !config.skip_tag_keys.contains(key) {
+                                insert_node_tag.execute(params![node.id, key, value?])?;
                             }
                         }
                     }
@@ -192,11 +199,12 @@ fn process_primitive_block(
                 insert_way.execute(params![way.id])?;
 
                 if let Some(insert_way_tag) = &mut stmts.way_tag {
-                    let tags = TagReader::new(&way.keys, &way.vals, string_table);
+                    let tags = new_tag_reader(string_table, &way.keys, &way.vals);
 
                     for (key, value) in tags {
-                        if !config.skip_tag_keys.contains(key?) {
-                            insert_way_tag.execute(params![way.id, key?, value?])?;
+                        let key = key?;
+                        if !config.skip_tag_keys.contains(key) {
+                            insert_way_tag.execute(params![way.id, key, value?])?;
                         }
                     }
                 }
@@ -220,11 +228,12 @@ fn process_primitive_block(
                 insert_relation.execute(params![relation.id])?;
 
                 if let Some(insert_relation_tag) = &mut stmts.relation_tag {
-                    let tags = TagReader::new(&relation.keys, &relation.vals, string_table);
+                    let tags = new_tag_reader(string_table, &relation.keys, &relation.vals);
 
                     for (key, value) in tags {
-                        if !config.skip_tag_keys.contains(key?) {
-                            insert_relation_tag.execute(params![relation.id, key?, value?])?;
+                        let key = key?;
+                        if !config.skip_tag_keys.contains(key) {
+                            insert_relation_tag.execute(params![relation.id, key, value?])?;
                         }
                     }
                 }
@@ -241,16 +250,16 @@ fn process_primitive_block(
                         let mut way_id = None;
                         let mut rel_id = None;
 
-                        use pbf::mod_Relation::MemberType;
+                        use pbf::relation::MemberType;
 
-                        match relation.types[i] {
-                            MemberType::NODE => {
+                        match MemberType::from_i32(relation.types[i]).expect("invalid MemberType enum") {
+                            MemberType::Node => {
                                 node_id = Some(member_id);
                             }
-                            MemberType::WAY => {
+                            MemberType::Way => {
                                 way_id = Some(member_id);
                             }
-                            MemberType::RELATION => {
+                            MemberType::Relation => {
                                 rel_id = Some(member_id);
                             }
                         }
@@ -316,7 +325,7 @@ fn dump<Input: std::io::Read>(
     input_pbf: &mut Input,
     conn: &mut rusqlite::Connection,
     config: &Config,
-) -> rusqlite::Result<()> {
+) -> anyhow::Result<()> {
     {
         let tr = conn.transaction()?;
         db::create_tables(&tr, config)?;
@@ -324,11 +333,9 @@ fn dump<Input: std::io::Read>(
     }
 
     conn.execute("PRAGMA synchronous = OFF", [])?;
-    conn.query_row_and_then(
-        "PRAGMA journal_mode = MEMORY",
-        [],
-        |_row| -> rusqlite::Result<()> { Ok(()) },
-    )?;
+    conn.query_row_and_then("PRAGMA journal_mode = MEMORY", [], |_row| -> rusqlite::Result<()> {
+        Ok(())
+    })?;
 
     {
         let tr = conn.transaction()?;
@@ -339,16 +346,18 @@ fn dump<Input: std::io::Read>(
 
         while let Some(result) = read_blob(input_pbf) {
             match result {
-                Ok(raw_block) => {
-                    match block_parser.parse_block(raw_block) {
-                        Ok(block) => match block {
-                            Block::Header(header_block) => process_header_block(header_block, &tr, config)?,
-                            Block::Primitive(primitive_block) => process_primitive_block(primitive_block, config, &mut stmts)?,
-                            Block::Unknown(unknown_block) => println!("Skipping unknown block of size {}", unknown_block.len()),
+                Ok(raw_block) => match block_parser.parse_block(raw_block) {
+                    Ok(block) => match block {
+                        Block::Header(header_block) => process_header_block(header_block, &tr, config)?,
+                        Block::Primitive(primitive_block) => {
+                            process_primitive_block(primitive_block, config, &mut stmts)?
                         }
-                        Err(error) => println!("Error during parsing a block: {:?}", error),
-                    }
-                }
+                        Block::Unknown(unknown_block) => {
+                            println!("Skipping unknown block of size {}", unknown_block.len())
+                        }
+                    },
+                    Err(error) => println!("Error during parsing a block: {:?}", error),
+                },
                 Err(error) => println!("Error during reading the next blob: {:?}", error),
             }
         }
@@ -361,27 +370,22 @@ fn dump<Input: std::io::Read>(
     Ok(())
 }
 
-fn main() -> Result<(), DumperError> {
-    let config_path = std::env::args().nth(1).unwrap_or("config.json".to_string());
+fn main() -> anyhow::Result<()> {
+    let config_path = std::env::args().nth(1).unwrap_or("config.toml".to_string());
     let config = read_config(config_path)?;
 
-    let mut input_pbf = File::open(&config.input_pbf)
-        .map_err(|err| DumperError::new(err.into(), format!("Failed to open input PBF `{:?}`", config.input_pbf)))?;
+    let mut input_pbf =
+        File::open(&config.input_pbf).with_context(|| format!("Failed to open input PBF `{:?}`", config.input_pbf))?;
 
     if config.overwrite_output && config.output_db.exists() {
         std::fs::remove_file(&config.output_db)
-            .map_err(|err| DumperError::new(err.into(), format!("Failed to remove `{:?}`", config.output_db)))?;
+            .with_context(|| format!("Failed to remove `{:?}`", config.output_db))?;
     }
 
-    let mut conn = rusqlite::Connection::open(&config.output_db).map_err(|err| {
-        DumperError::new(
-            err.into(),
-            format!("Failed to open output SQLite database `{:?}`", config.output_db),
-        )
-    })?;
+    let mut conn = rusqlite::Connection::open(&config.output_db)
+        .with_context(|| format!("Failed to open output SQLite database `{:?}`", config.output_db))?;
 
-    dump(&mut input_pbf, &mut conn, &config)
-        .map_err(|err| DumperError::new(err.into(), "An error occured during dumping".to_owned()))?;
+    dump(&mut input_pbf, &mut conn, &config)?;
 
     Ok(())
 }

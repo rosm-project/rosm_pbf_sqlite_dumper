@@ -1,9 +1,8 @@
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 use std::collections::HashSet;
 use std::path::PathBuf;
-
-use super::error::DumperError;
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct TableConfig {
@@ -63,20 +62,39 @@ pub struct Config {
     pub way_tags: TableConfig,
 }
 
-pub fn read_config(config_path: String) -> Result<Config, DumperError> {
-    let config_contents = std::fs::read_to_string(&config_path).map_err(|err| {
-        DumperError::new(
-            err.into(),
-            format!("Failed to read configuration from `{}`", config_path),
-        )
-    })?;
+pub fn read_config(config_path: String) -> anyhow::Result<Config> {
+    let config_contents = std::fs::read_to_string(&config_path)
+        .with_context(|| format!("Failed to read configuration from {}", config_path))?;
 
-    let config = serde_json::from_str::<Config>(&config_contents).map_err(|err| {
-        DumperError::new(
-            err.into(),
-            format!("Failed to parse configuration from `{}`", config_path),
-        )
-    })?;
+    let config = toml::from_str::<Config>(&config_contents)
+        .with_context(|| format!("Failed to parse configuration from {}", config_path))?;
 
     Ok(config)
+}
+
+#[cfg(test)]
+mod config_tests {
+    use std::vec;
+
+    use super::*;
+
+    #[test]
+    fn valid_input() {
+        let config: Config = toml::from_str(
+            r#"
+input_pbf = "osm.pbf"
+output_db = "out.db"
+overwrite_output = true
+
+[node_tags]
+create_index_on = ["node_id, key"]
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(config.input_pbf.to_str().unwrap(), "osm.pbf");
+        assert_eq!(config.output_db.to_str().unwrap(), "out.db");
+        assert_eq!(config.overwrite_output, true);
+        assert_eq!(config.node_tags.create_index_on, vec!["node_id, key"]);
+    }
 }
