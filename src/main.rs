@@ -1,8 +1,9 @@
 use anyhow::Context;
 
+use rosm_pbf_reader::dense::{new_dense_tag_reader, DenseNode, DenseNodeReader};
 use rosm_pbf_reader::pbf;
 use rosm_pbf_reader::util::*;
-use rosm_pbf_reader::{read_blob, Block, BlockParser, DeltaValueReader, DenseNode, DenseNodeReader, TagReader};
+use rosm_pbf_reader::{new_tag_reader, read_blob, Block, BlockParser, DeltaValueReader};
 
 use rusqlite::{params, Transaction};
 
@@ -146,9 +147,11 @@ fn process_primitive_block(
     for group in &block.primitivegroup {
         if let Some(insert_node) = &mut stmts.node {
             if let Some(dense_nodes) = &group.dense {
-                let nodes = DenseNodeReader::new(&dense_nodes, string_table);
+                let nodes = DenseNodeReader::new(&dense_nodes)?;
 
                 for node in nodes {
+                    let node = node?;
+
                     let coord = normalize_coord(node.lat, node.lon, &block);
                     insert_node.execute(params![node.id, coord.0, coord.1])?;
 
@@ -157,9 +160,13 @@ fn process_primitive_block(
                     }
 
                     if let Some(insert_node_tag) = &mut stmts.node_tag {
-                        for (key, value) in node.tags {
-                            if !config.skip_tag_keys.contains(key?) {
-                                insert_node_tag.execute(params![node.id, key?, value?])?;
+                        let tags = new_dense_tag_reader(string_table, node.key_value_indices);
+
+                        for (key, value) in tags {
+                            let key = key?;
+
+                            if !config.skip_tag_keys.contains(key) {
+                                insert_node_tag.execute(params![node.id, key, value?])?;
                             }
                         }
                     }
@@ -170,11 +177,12 @@ fn process_primitive_block(
                     insert_node.execute(params![node.id, coord.0, coord.1])?;
 
                     if let Some(insert_node_tag) = &mut stmts.node_tag {
-                        let tags = TagReader::new(&node.keys, &node.vals, string_table);
+                        let tags = new_tag_reader(string_table, &node.keys, &node.vals);
 
                         for (key, value) in tags {
-                            if !config.skip_tag_keys.contains(key?) {
-                                insert_node_tag.execute(params![node.id, key?, value?])?;
+                            let key = key?;
+                            if !config.skip_tag_keys.contains(key) {
+                                insert_node_tag.execute(params![node.id, key, value?])?;
                             }
                         }
                     }
@@ -191,11 +199,12 @@ fn process_primitive_block(
                 insert_way.execute(params![way.id])?;
 
                 if let Some(insert_way_tag) = &mut stmts.way_tag {
-                    let tags = TagReader::new(&way.keys, &way.vals, string_table);
+                    let tags = new_tag_reader(string_table, &way.keys, &way.vals);
 
                     for (key, value) in tags {
-                        if !config.skip_tag_keys.contains(key?) {
-                            insert_way_tag.execute(params![way.id, key?, value?])?;
+                        let key = key?;
+                        if !config.skip_tag_keys.contains(key) {
+                            insert_way_tag.execute(params![way.id, key, value?])?;
                         }
                     }
                 }
@@ -219,11 +228,12 @@ fn process_primitive_block(
                 insert_relation.execute(params![relation.id])?;
 
                 if let Some(insert_relation_tag) = &mut stmts.relation_tag {
-                    let tags = TagReader::new(&relation.keys, &relation.vals, string_table);
+                    let tags = new_tag_reader(string_table, &relation.keys, &relation.vals);
 
                     for (key, value) in tags {
-                        if !config.skip_tag_keys.contains(key?) {
-                            insert_relation_tag.execute(params![relation.id, key?, value?])?;
+                        let key = key?;
+                        if !config.skip_tag_keys.contains(key) {
+                            insert_relation_tag.execute(params![relation.id, key, value?])?;
                         }
                     }
                 }
