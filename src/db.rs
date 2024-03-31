@@ -5,7 +5,7 @@ use super::config::{Config, TableConfig};
 pub fn create_tables(tr: &Transaction, config: &Config) -> rusqlite::Result<()> {
     let create_index = |config: &TableConfig, table: &str| -> rusqlite::Result<()> {
         for columns in &config.create_index_on {
-            let columns_split: Vec<&str> = columns.split(",").map(|c| c.trim()).collect();
+            let columns_split: Vec<&str> = columns.split(',').map(str::trim).collect();
             tr.execute(
                 &format!(
                     "CREATE INDEX {}_{} ON {} ({})",

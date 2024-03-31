@@ -2,7 +2,7 @@ use anyhow::Context;
 
 use rosm_pbf_reader::dense::{new_dense_tag_reader, DenseNode, DenseNodeReader};
 use rosm_pbf_reader::pbf;
-use rosm_pbf_reader::util::*;
+use rosm_pbf_reader::util::{normalize_coord, normalize_timestamp};
 use rosm_pbf_reader::{new_tag_reader, read_blob, Block, BlockParser, DeltaValueReader};
 
 use rusqlite::{params, Transaction};
@@ -14,7 +14,7 @@ use config::{read_config, Config, TableConfig};
 
 mod db;
 
-fn process_header_block(block: pbf::HeaderBlock, tr: &Transaction, config: &Config) -> rusqlite::Result<()> {
+fn process_header_block(block: &pbf::HeaderBlock, tr: &Transaction, config: &Config) -> rusqlite::Result<()> {
     if config.header.skip {
         return Ok(());
     }
@@ -113,17 +113,11 @@ fn insert_info<P: OsmPrimitive>(
     insert_stmt: &mut rusqlite::CachedStatement,
 ) -> rusqlite::Result<()> {
     if let Some(info) = primitive.info() {
-        let user = if let Some(string_id) = info.user_sid {
-            Some(std::str::from_utf8(block.stringtable.s[string_id as usize].as_ref()).unwrap())
-        } else {
-            None
-        };
+        let user = info
+            .user_sid
+            .map(|string_id| std::str::from_utf8(block.stringtable.s[string_id as usize].as_ref()).unwrap());
 
-        let timestamp = if let Some(ts) = info.timestamp {
-            Some(normalize_timestamp(ts, block))
-        } else {
-            None
-        };
+        let timestamp = info.timestamp.map(|ts| normalize_timestamp(ts, block));
 
         insert_stmt.execute(params![
             primitive.id(),
@@ -138,7 +132,7 @@ fn insert_info<P: OsmPrimitive>(
 }
 
 fn process_primitive_block(
-    block: pbf::PrimitiveBlock,
+    block: &pbf::PrimitiveBlock,
     config: &Config,
     stmts: &mut InsertStatements,
 ) -> anyhow::Result<()> {
@@ -147,16 +141,16 @@ fn process_primitive_block(
     for group in &block.primitivegroup {
         if let Some(insert_node) = &mut stmts.node {
             if let Some(dense_nodes) = &group.dense {
-                let nodes = DenseNodeReader::new(&dense_nodes)?;
+                let nodes = DenseNodeReader::new(dense_nodes)?;
 
                 for node in nodes {
                     let node = node?;
 
-                    let coord = normalize_coord(node.lat, node.lon, &block);
+                    let coord = normalize_coord(node.lat, node.lon, block);
                     insert_node.execute(params![node.id, coord.0, coord.1])?;
 
                     if let Some(insert_node_info) = &mut stmts.node_info {
-                        insert_info(&node, &block, insert_node_info)?;
+                        insert_info(&node, block, insert_node_info)?;
                     }
 
                     if let Some(insert_node_tag) = &mut stmts.node_tag {
@@ -173,7 +167,7 @@ fn process_primitive_block(
                 }
             } else {
                 for node in &group.nodes {
-                    let coord = normalize_coord(node.lat, node.lon, &block);
+                    let coord = normalize_coord(node.lat, node.lon, block);
                     insert_node.execute(params![node.id, coord.0, coord.1])?;
 
                     if let Some(insert_node_tag) = &mut stmts.node_tag {
@@ -188,7 +182,7 @@ fn process_primitive_block(
                     }
 
                     if let Some(insert_node_info) = &mut stmts.node_info {
-                        insert_info(node, &block, insert_node_info)?;
+                        insert_info(node, block, insert_node_info)?;
                     }
                 }
             }
@@ -210,7 +204,7 @@ fn process_primitive_block(
                 }
 
                 if let Some(insert_way_info) = &mut stmts.way_info {
-                    insert_info(way, &block, insert_way_info)?;
+                    insert_info(way, block, insert_way_info)?;
                 }
 
                 if let Some(insert_way_ref) = &mut stmts.way_ref {
@@ -239,18 +233,18 @@ fn process_primitive_block(
                 }
 
                 if let Some(insert_relation_info) = &mut stmts.relation_info {
-                    insert_info(relation, &block, insert_relation_info)?;
+                    insert_info(relation, block, insert_relation_info)?;
                 }
 
                 if let Some(insert_relation_member) = &mut stmts.relation_member {
                     let memids = DeltaValueReader::new(&relation.memids);
 
                     for (i, member_id) in memids.enumerate() {
+                        use pbf::relation::MemberType;
+
                         let mut node_id = None;
                         let mut way_id = None;
                         let mut rel_id = None;
-
-                        use pbf::relation::MemberType;
 
                         match MemberType::try_from(relation.types[i]).expect("invalid MemberType enum") {
                             MemberType::Node => {
@@ -264,8 +258,8 @@ fn process_primitive_block(
                             }
                         }
 
-                        let string_id = relation.roles_sid[i];
-                        let role = std::str::from_utf8(string_table.s[string_id as usize].as_ref())?;
+                        let string_id: usize = relation.roles_sid[i].try_into().expect("negative string index");
+                        let role = std::str::from_utf8(string_table.s[string_id].as_ref())?;
 
                         insert_relation_member.execute(params![relation.id, node_id, way_id, rel_id, role])?;
                     }
@@ -298,7 +292,7 @@ struct InsertStatements<'a> {
 fn prepare_insert_statements<'a>(tr: &'a Transaction, config: &Config) -> rusqlite::Result<InsertStatements<'a>> {
     let stmt = |sql: &str, table: &TableConfig, dependent_table: &TableConfig| {
         if !table.skip && !dependent_table.skip {
-            tr.prepare_cached(sql).map(|statement| Some(statement))
+            tr.prepare_cached(sql).map(Some)
         } else {
             Ok(None)
         }
@@ -348,17 +342,17 @@ fn dump<Input: std::io::Read>(
             match result {
                 Ok(raw_block) => match block_parser.parse_block(raw_block) {
                     Ok(block) => match block {
-                        Block::Header(header_block) => process_header_block(header_block, &tr, config)?,
+                        Block::Header(header_block) => process_header_block(&header_block, &tr, config)?,
                         Block::Primitive(primitive_block) => {
-                            process_primitive_block(primitive_block, config, &mut stmts)?
+                            process_primitive_block(&primitive_block, config, &mut stmts)?;
                         }
                         Block::Unknown(unknown_block) => {
-                            println!("Skipping unknown block of size {}", unknown_block.len())
+                            println!("Skipping unknown block of size {}", unknown_block.len());
                         }
                     },
-                    Err(error) => println!("Error during parsing a block: {:?}", error),
+                    Err(error) => println!("Error during parsing a block: {error:?}"),
                 },
-                Err(error) => println!("Error during reading the next blob: {:?}", error),
+                Err(error) => println!("Error during reading the next blob: {error:?}"),
             }
         }
 
@@ -372,7 +366,7 @@ fn dump<Input: std::io::Read>(
 
 fn main() -> anyhow::Result<()> {
     let config_path = std::env::args().nth(1).unwrap_or("config.toml".to_string());
-    let config = read_config(config_path)?;
+    let config = read_config(&config_path)?;
 
     let mut input_pbf =
         File::open(&config.input_pbf).with_context(|| format!("Failed to open input PBF `{:?}`", config.input_pbf))?;
