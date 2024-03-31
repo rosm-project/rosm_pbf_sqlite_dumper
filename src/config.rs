@@ -62,12 +62,12 @@ pub struct Config {
     pub way_tags: TableConfig,
 }
 
-pub fn read_config(config_path: String) -> anyhow::Result<Config> {
-    let config_contents = std::fs::read_to_string(&config_path)
-        .with_context(|| format!("Failed to read configuration from {}", config_path))?;
+pub fn read_config(config_path: &str) -> anyhow::Result<Config> {
+    let config_contents = std::fs::read_to_string(config_path)
+        .with_context(|| format!("Failed to read configuration from {config_path}"))?;
 
     let config = toml::from_str::<Config>(&config_contents)
-        .with_context(|| format!("Failed to parse configuration from {}", config_path))?;
+        .with_context(|| format!("Failed to parse configuration from {config_path}"))?;
 
     Ok(config)
 }
@@ -94,7 +94,7 @@ create_index_on = ["node_id, key"]
 
         assert_eq!(config.input_pbf.to_str().unwrap(), "osm.pbf");
         assert_eq!(config.output_db.to_str().unwrap(), "out.db");
-        assert_eq!(config.overwrite_output, true);
+        assert!(config.overwrite_output);
         assert_eq!(config.node_tags.create_index_on, vec!["node_id, key"]);
     }
 }
