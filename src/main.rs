@@ -252,7 +252,7 @@ fn process_primitive_block(
 
                         use pbf::relation::MemberType;
 
-                        match MemberType::from_i32(relation.types[i]).expect("invalid MemberType enum") {
+                        match MemberType::try_from(relation.types[i]).expect("invalid MemberType enum") {
                             MemberType::Node => {
                                 node_id = Some(member_id);
                             }
