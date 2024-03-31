@@ -5,8 +5,8 @@ authors = ["Zsolt Bölöny <bolony.zsolt@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.68"
-serde = { version = "1.0.152", features = ["derive"] }
-rosm_pbf_reader = "1.0.0"
-rusqlite = { version = "0.28", features = ["bundled"] }
-toml = "0.7.1"
+anyhow = "1.0.81"
+serde = { version = "1.0.197", features = ["derive"] }
+rosm_pbf_reader = "1.0.2"
+rusqlite = { version = "0.31.0", features = ["bundled"] }
+toml = "0.8.12"
