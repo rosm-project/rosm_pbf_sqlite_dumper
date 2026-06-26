@@ -1,16 +1,16 @@
 use anyhow::Context;
 
-use rosm_pbf_reader::dense::{new_dense_tag_reader, DenseNode, DenseNodeReader};
+use rosm_pbf_reader::dense::{DenseNode, DenseNodeReader, new_dense_tag_reader};
 use rosm_pbf_reader::pbf;
 use rosm_pbf_reader::util::{normalize_coord, normalize_timestamp};
-use rosm_pbf_reader::{new_tag_reader, read_blob, Block, BlockParser, DeltaValueReader};
+use rosm_pbf_reader::{Block, BlockParser, DeltaValueReader, new_tag_reader, read_blob};
 
-use rusqlite::{params, Transaction};
+use rusqlite::{Transaction, params};
 
 use std::fs::File;
 
 mod config;
-use config::{read_config, Config, TableConfig};
+use config::{Config, TableConfig, read_config};
 
 mod db;
 
@@ -299,19 +299,59 @@ fn prepare_insert_statements<'a>(tr: &'a Transaction, config: &Config) -> rusqli
     };
 
     Ok(InsertStatements {
-        node: stmt("INSERT INTO nodes (id, lat, lon) VALUES (?1, ?2, ?3)", &config.nodes, &config.nodes)?,
-        node_tag: stmt("INSERT INTO node_tags (node_id, key, value) VALUES (?1, ?2, ?3)", &config.node_tags, &config.nodes)?,
-        node_info: stmt("INSERT INTO node_info (node_id, version, timestamp, user_id, user, visible) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", &config.node_info, &config.nodes)?,
+        node: stmt(
+            "INSERT INTO nodes (id, lat, lon) VALUES (?1, ?2, ?3)",
+            &config.nodes,
+            &config.nodes,
+        )?,
+        node_tag: stmt(
+            "INSERT INTO node_tags (node_id, key, value) VALUES (?1, ?2, ?3)",
+            &config.node_tags,
+            &config.nodes,
+        )?,
+        node_info: stmt(
+            "INSERT INTO node_info (node_id, version, timestamp, user_id, user, visible) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            &config.node_info,
+            &config.nodes,
+        )?,
 
         way: stmt("INSERT INTO ways (id) VALUES (?1)", &config.ways, &config.ways)?,
-        way_tag: stmt("INSERT INTO way_tags (way_id, key, value) VALUES (?1, ?2, ?3)", &config.way_tags, &config.ways)?,
-        way_info: stmt("INSERT INTO way_info (way_id, version, timestamp, user_id, user, visible) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", &config.way_info, &config.ways)?,
-        way_ref: stmt("INSERT INTO way_refs (way_id, ref_node_id) VALUES (?1, ?2)", &config.way_refs, &config.ways)?,
+        way_tag: stmt(
+            "INSERT INTO way_tags (way_id, key, value) VALUES (?1, ?2, ?3)",
+            &config.way_tags,
+            &config.ways,
+        )?,
+        way_info: stmt(
+            "INSERT INTO way_info (way_id, version, timestamp, user_id, user, visible) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            &config.way_info,
+            &config.ways,
+        )?,
+        way_ref: stmt(
+            "INSERT INTO way_refs (way_id, ref_node_id) VALUES (?1, ?2)",
+            &config.way_refs,
+            &config.ways,
+        )?,
 
-        relation: stmt("INSERT INTO relations (id) VALUES (?1)", &config.relations, &config.relations)?,
-        relation_tag: stmt("INSERT INTO relation_tags (relation_id, key, value) VALUES (?1, ?2, ?3)", &config.relation_tags, &config.relations)?,
-        relation_info: stmt("INSERT INTO relation_info (relation_id, version, timestamp, user_id, user, visible) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", &config.relation_info, &config.relations)?,
-        relation_member: stmt("INSERT INTO relation_members (relation_id, member_node_id, member_way_id, member_relation_id, role) VALUES (?1, ?2, ?3, ?4, ?5)", &config.relation_members, &config.relations)?,
+        relation: stmt(
+            "INSERT INTO relations (id) VALUES (?1)",
+            &config.relations,
+            &config.relations,
+        )?,
+        relation_tag: stmt(
+            "INSERT INTO relation_tags (relation_id, key, value) VALUES (?1, ?2, ?3)",
+            &config.relation_tags,
+            &config.relations,
+        )?,
+        relation_info: stmt(
+            "INSERT INTO relation_info (relation_id, version, timestamp, user_id, user, visible) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            &config.relation_info,
+            &config.relations,
+        )?,
+        relation_member: stmt(
+            "INSERT INTO relation_members (relation_id, member_node_id, member_way_id, member_relation_id, role) VALUES (?1, ?2, ?3, ?4, ?5)",
+            &config.relation_members,
+            &config.relations,
+        )?,
     })
 }
 

@@ -2,11 +2,11 @@
 name = "rosm_pbf_sqlite_dumper"
 version = "0.1.0"
 authors = ["Zsolt Bölöny <bolony.zsolt@gmail.com>"]
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-anyhow = "1.0.81"
-serde = { version = "1.0.197", features = ["derive"] }
-rosm_pbf_reader = "1.0.2"
-rusqlite = { version = "0.31.0", features = ["bundled"] }
-toml = "0.8.12"
+anyhow = "1.0.103"
+serde = { version = "1.0.228", features = ["derive"] }
+rosm_pbf_reader = "1.0.4"
+rusqlite = { version = "0.40.1", features = ["bundled"] }
+toml = "1.1.2"
